@@ -229,15 +229,10 @@ static int counter_sam0_tc32_cancel_alarm(struct device *dev, u8_t chan_id)
 static int counter_sam0_tc32_set_top_value(struct device *dev,
 					 const struct counter_top_cfg *top_cfg)
 {
-	bool reset = true;
 	struct counter_sam0_tc32_data *data = DEV_DATA(dev);
 	const struct counter_sam0_tc32_config *const cfg = DEV_CFG(dev);
 	TcCount32 *tc = cfg->regs;
 	int key = irq_lock();
-
-	if (top_cfg->flags & COUNTER_TOP_CFG_DONT_RESET) {
-		return -ENOTSUP;
-	}
 
 	if (data->ch.callback) {
 		irq_unlock(key);
@@ -254,9 +249,7 @@ static int counter_sam0_tc32_set_top_value(struct device *dev,
 
 	tc->CC[0].reg = top_cfg->ticks;
 
-	if (reset) {
-		tc->CTRLBSET.reg = TC_CTRLBSET_CMD_RETRIGGER;
-	} else {
+	if (top_cfg->flags & COUNTER_TOP_CFG_DONT_RESET) {
 		/*
 		 * Top trigger is on equality of the rising edge only, so
 		 * manually reset it if the counter has missed the new top.
@@ -264,6 +257,8 @@ static int counter_sam0_tc32_set_top_value(struct device *dev,
 		if (counter_sam0_tc32_read(dev) >= top_cfg->ticks) {
 			tc->CTRLBSET.reg = TC_CTRLBSET_CMD_RETRIGGER;
 		}
+	} else {
+		tc->CTRLBSET.reg = TC_CTRLBSET_CMD_RETRIGGER;
 	}
 
 	wait_synchronization(tc);
